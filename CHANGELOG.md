@@ -221,6 +221,9 @@ Unreleased
 - Clean up extraneous css rules
 - Add 3DS 2 support
 
+_Beta Features_
+- Add ability to prevent deleting a payment method with an associated subscription
+
 1.18.0
 ------
 - Add ability to opt out of client side vaulting (cards)

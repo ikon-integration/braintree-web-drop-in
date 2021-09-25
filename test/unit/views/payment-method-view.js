@@ -1,4 +1,6 @@
+
 const analytics = require('../../../src/lib/analytics');
+const classList = require('@braintree/class-list');
 const BaseView = require('../../../src/views/base-view');
 const fake = require('../../helpers/fake');
 const PaymentMethodView = require('../../../src/views/payment-method-view');
@@ -317,6 +319,141 @@ describe('PaymentMethodView', () => {
     );
   });
 
+  describe('edit mode', function () {
+    it('applies disabled class if payment method has a subscription and the merchant configuration for preventing deleting payment methods with subscriptions is enabeld', function () {
+      var model = fake.model();
+      var view = new PaymentMethodView({
+        model: model,
+        strings: strings,
+        paymentMethod: {
+          hasSubscription: true,
+          type: 'Foo',
+          nonce: 'nonce'
+        }
+      });
+
+      model.merchantConfiguration.vaultManager = {
+        preventDeletingPaymentMethodsWithSubscriptions: true
+      };
+      this.sandbox.stub(classList, 'add');
+
+      view.enableEditMode();
+
+      expect(classList.add).to.be.calledTwice;
+      expect(classList.add).to.be.calledWith(view.element, 'braintree-method--disabled');
+    });
+
+    it('does not apply disabled class if payment method has a subscription and the merchant configuration for preventing deleting payment methods with subscriptions is not enabled', function () {
+      var model = fake.model();
+      var view = new PaymentMethodView({
+        model: model,
+        strings: strings,
+        paymentMethod: {
+          hasSubscription: true,
+          type: 'Foo',
+          nonce: 'nonce'
+        }
+      });
+
+      model.merchantConfiguration.vaultManager = true;
+      this.sandbox.stub(classList, 'add');
+
+      view.enableEditMode();
+
+      expect(classList.add).to.be.calledOnce;
+      expect(classList.add).to.not.be.calledWith(this.sandbox.match.any, 'braintree-method--disabled');
+    });
+
+    it('does not apply disabled class if payment method does not have a subscription and the merchant configuration for preventing deleting payment methods with subscriptions is not enabled', function () {
+      var model = fake.model();
+      var view = new PaymentMethodView({
+        model: model,
+        strings: strings,
+        paymentMethod: {
+          type: 'Foo',
+          nonce: 'nonce'
+        }
+      });
+
+      model.merchantConfiguration.vaultManager = true;
+      this.sandbox.stub(classList, 'add');
+
+      view.enableEditMode();
+
+      expect(classList.add).to.be.calledOnce;
+      expect(classList.add).to.not.be.calledWith(this.sandbox.match.any, 'braintree-method--disabled');
+    });
+
+    it('does not apply disabled class if payment method does not have a subscription and the merchant configuration for preventing deleting payment methods with subscriptions is enabled', function () {
+      var model = fake.model();
+      var view = new PaymentMethodView({
+        model: model,
+        strings: strings,
+        paymentMethod: {
+          type: 'Foo',
+          nonce: 'nonce'
+        }
+      });
+
+      model.merchantConfiguration.vaultManager = {
+        preventDeletingPaymentMethodsWithSubscriptions: true
+      };
+      this.sandbox.stub(classList, 'add');
+
+      view.enableEditMode();
+
+      expect(classList.add).to.be.calledOnce;
+      expect(classList.add).to.not.be.calledWith(this.sandbox.match.any, 'braintree-method--disabled');
+    });
+
+    it('does not call model.changeActivePaymentMethod in click handler when in edit mode', function () {
+      var model = fake.model();
+      var view = new PaymentMethodView({
+        model: model,
+        strings: strings,
+        paymentMethod: {
+          type: 'Foo',
+          nonce: 'nonce'
+        }
+      });
+
+      this.sandbox.stub(model, 'changeActivePaymentMethod');
+      this.sandbox.stub(model, 'isInEditMode').returns(true);
+
+      view._choosePaymentMethod();
+
+      expect(view.model.changeActivePaymentMethod).to.not.be.called;
+
+      model.isInEditMode.returns(false);
+      view._choosePaymentMethod();
+
+      expect(view.model.changeActivePaymentMethod).to.be.calledOnce;
+    });
+
+    it('calls model.confirmPaymentMethodDeletion when delete icon is clicked', function () {
+      var fakeModel = {
+        confirmPaymentMethodDeletion: this.sandbox.stub()
+      };
+      var paymentMethod = {
+        type: 'Foo',
+        nonce: 'nonce'
+      };
+      const view = new PaymentMethodView({
+        model: {},
+        strings: strings,
+        paymentMethod: paymentMethod
+      });
+
+      document.body.appendChild(view.element);
+      jest.spyOn(document.body, 'removeChild');
+
+      view.teardown();
+
+      expect(document.body.removeChild).toBeCalledTimes(1);
+      expect(document.body.removeChild).toBeCalledWith(view.element);
+    });
+  });
+});
   describe('teardown', () => {
     test('removes element from the container', () => {
       const paymentMethod = {
