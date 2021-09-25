@@ -11,11 +11,10 @@ var assets = require('@braintree/asset-loader');
 var fs = require('fs');
 var MainView = require('./views/main-view');
 var paymentMethodsViewID = require('./views/payment-methods-view').ID;
-var paymentOptionsViewID = require('./views/payment-options-view').ID;
 var paymentOptionIDs = constants.paymentOptionIDs;
 var translations = require('./translations').translations;
 var isUtf8 = require('./lib/is-utf-8');
-var uuid = require('./lib/uuid');
+var uuid = require('@braintree/uuid');
 var Promise = require('./lib/promise');
 var sanitizeHtml = require('./lib/sanitize-html');
 var DataCollector = require('./lib/data-collector');
@@ -25,6 +24,27 @@ var wrapPrototype = require('@braintree/wrap-promise').wrapPrototype;
 var mainHTML = fs.readFileSync(__dirname + '/html/main.html', 'utf8');
 var svgHTML = fs.readFileSync(__dirname + '/html/svgs.html', 'utf8');
 
+var PASS_THROUGH_EVENTS = [
+  'changeActiveView',
+  'paymentMethodRequestable',
+  'noPaymentMethodRequestable',
+  'paymentOptionSelected',
+
+  // Card View Events
+  'card:binAvailable',
+  'card:blur',
+  'card:cardTypeChange',
+  'card:empty',
+  'card:focus',
+  'card:inputSubmitRequest',
+  'card:notEmpty',
+  'card:validityChange',
+
+  // 3DS Events
+  '3ds:customer-canceled',
+  '3ds:authentication-modal-render',
+  '3ds:authentication-modal-close'
+];
 var UPDATABLE_CONFIGURATION_OPTIONS = [
   paymentOptionIDs.paypal,
   paymentOptionIDs.paypalCredit,
@@ -47,20 +67,21 @@ HAS_RAW_PAYMENT_DATA[constants.paymentMethodTypes.applePay] = true;
 /**
  * @typedef {object} Dropin~cardPaymentMethodPayload
  * @property {string} nonce The payment method nonce, used by your server to charge the card.
- * @property {object} details Additional account details.
- * @property {string} details.cardType Type of card, e.g. Visa, Mastercard.
- * @property {string} details.lastTwo Last two digits of card number.
+ * @property {object} details Additional account details. See a full list of details in the [Hosted Fields client reference](http://braintree.github.io/braintree-web/{@pkg bt-web-version}/HostedFields.html#~tokenizePayload).
  * @property {string} description A human-readable description.
  * @property {string} type The payment method type, always `CreditCard` when the method requested is a card.
  * @property {object} binData Information about the card based on the bin. Documented {@link Dropin~binData|here}.
+ * @property {?boolean} vaulted If present and true, indicates that the payment method refers to a vaulted payment method.
  * @property {?string} deviceData If data collector is configured, the device data property to be used when making a transaction.
  * @property {?boolean} liabilityShifted If 3D Secure is configured, whether or not liability did shift.
  * @property {?boolean} liabilityShiftPossible If 3D Secure is configured, whether or not liability shift is possible.
+ * @property {?object} threeDSecureInfo If 3D Secure is configured, the `threeDSecureInfo` documented in the [Three D Secure client reference](http://braintree.github.io/braintree-web/{@pkg bt-web-version}/ThreeDSecure.html#~verifyPayload)
  */
 
 /**
  * @typedef {object} Dropin~paypalPaymentMethodPayload
  * @property {string} nonce The payment method nonce, used by your server to charge the PayPal account.
+ * @property {?boolean} vaulted If present and true, indicates that the payment method refers to a vaulted payment method.
  * @property {object} details Additional PayPal account details. See a full list of details in the [PayPal client reference](http://braintree.github.io/braintree-web/{@pkg bt-web-version}/PayPalCheckout.html#~tokenizePayload).
  * @property {string} type The payment method type, always `PayPalAccount` when the method requested is a PayPal account.
  * @property {?string} deviceData If data collector is configured, the device data property to be used when making a transaction.
@@ -69,6 +90,7 @@ HAS_RAW_PAYMENT_DATA[constants.paymentMethodTypes.applePay] = true;
 /**
  * @typedef {object} Dropin~applePayPaymentMethodPayload
  * @property {string} nonce The payment method nonce, used by your server to charge the Apple Pay provided card.
+ * @property {?boolean} vaulted If present and true, indicates that the payment method refers to a vaulted payment method.
  * @property {string} details.cardType Type of card, ex: Visa, Mastercard.
  * @property {string} details.cardHolderName The name of the card holder.
  * @property {string} details.dpanLastTwo Last two digits of card number.
@@ -88,6 +110,7 @@ HAS_RAW_PAYMENT_DATA[constants.paymentMethodTypes.applePay] = true;
 /**
  * @typedef {object} Dropin~venmoPaymentMethodPayload
  * @property {string} nonce The payment method nonce, used by your server to charge the Venmo account.
+ * @property {?boolean} vaulted If present and true, indicates that the payment method refers to a vaulted payment method.
  * @property {string} details.username The Venmo username.
  * @property {string} type The payment method type, always `VenmoAccount` when the method requested is a Venmo account.
  * @property {?string} deviceData If data collector is configured, the device data property to be used when making a transaction.
@@ -96,9 +119,12 @@ HAS_RAW_PAYMENT_DATA[constants.paymentMethodTypes.applePay] = true;
 /**
  * @typedef {object} Dropin~googlePayPaymentMethodPayload
  * @property {string} nonce The payment method nonce, used by your server to charge the Google Pay card.
+ * @property {?boolean} vaulted If present and true, indicates that the payment method refers to a vaulted payment method.
  * @property {string} details.cardType Type of card, ex: Visa, Mastercard.
  * @property {string} details.lastFour The last 4 digits of the card.
  * @property {string} details.lastTwo The last 2 digits of the card.
+ * @property {boolean} details.isNetworkTokenized True if the card is network tokenized. A network tokenized card is a generated virtual card with a device-specific account number (DPAN) that is used in place of the underlying source card.
+ * @property {string} details.bin First six digits of card number.
  * @property {external:GooglePayPaymentData} details.rawPaymentData The raw response back from the Google Pay flow, which includes shipping address, phone and email if passed in as required parameters.
  * @property {string} type The payment method type, always `AndroidPayCard` when the method requested is a Google Pay Card.
  * @property {object} binData Information about the card based on the bin. Documented {@link Dropin~binData|here}.
@@ -130,9 +156,26 @@ HAS_RAW_PAYMENT_DATA[constants.paymentMethodTypes.applePay] = true;
  * @param {string} event The name of the event to which you are subscribing.
  * @param {function} handler A callback to handle the event.
  * @description Subscribes a handler function to a named event. `event` should be one of the following:
+ *
+ *  * [`changeActiveView`](#event:changeActiveView)
  *  * [`paymentMethodRequestable`](#event:paymentMethodRequestable)
  *  * [`noPaymentMethodRequestable`](#event:noPaymentMethodRequestable)
  *  * [`paymentOptionSelected`](#event:paymentOptionSelected)
+ *
+ *  _Card View Specific Events_
+ *  * [`card:binAvailable`](#event:card:binAvailable)
+ *  * [`card:blur`](#event:card:blur)
+ *  * [`card:cardTypeChange`](#event:card:cardTypeChange)
+ *  * [`card:empty`](#event:card:empty)
+ *  * [`card:focus`](#event:card:focus)
+ *  * [`card:inputSubmitRequest`](#event:card:inputSubmitRequest)
+ *  * [`card:notEmpty`](#event:card:notEmpty)
+ *  * [`card:validityChange`](#event:card:validityChange)
+ *
+ *  _3DS Specific Events_
+ *  * [`3ds:customer-canceled`](#event:3ds:customer-canceled)
+ *  * [`3ds:authentication-modal-render`](#event:3ds:authentication-modal-render)
+ *  * [`3ds:authentication-modal-close`](#event:3ds:authentication-modal-close)
  * @returns {void}
  * @example
  * <caption>Dynamically enable or disable your submit button based on whether or not the payment method is requestable</caption>
@@ -166,6 +209,7 @@ HAS_RAW_PAYMENT_DATA[constants.paymentMethodTypes.applePay] = true;
  *     submitButton.setAttribute('disabled', true);
  *   });
  * });
+ *
  * @example
  * <caption>Automatically submit nonce to server as soon as it becomes available</caption>
  * var submitButton = document.querySelector('#submit-button');
@@ -193,10 +237,44 @@ HAS_RAW_PAYMENT_DATA[constants.paymentMethodTypes.applePay] = true;
  *     // or by using a stored payment method), we can request the
  *     // nonce right away. Otherwise, we wait for the customer to
  *     // request the nonce by pressing the submit button once they
- *     // are finished entering their credit card details
+ *     // are finished entering their credit card details. This is
+ *     // particularly important if your credit card form includes a
+ *     // postal code input. The `paymentMethodRequestable` event
+ *     // could fire before the customer has finished entering their
+ *     // postal code. (International postal codes can be as few as 3
+ *     // characters in length)
  *     if (event.paymentMethodIsSelected) {
  *       sendNonceToServer();
  *     }
+ *   });
+ * });
+ * @example
+ * <caption>Listen for when the customer navigates to different views in Drop-in</caption>
+ * braintree.dropin.create({
+ *   authorization: 'CLIENT_AUTHORIZATION',
+ *   container: '#dropin-container'
+ * }, function (err, dropinInstance) {
+ *   dropinInstance.on('changeActiveView', function (event) {
+ *     // fires when the view changes, such as going from the
+ *     // credit card view to the saved payment methods view
+ *     event.oldActivePaymentViewId; // card
+ *     event.newActivePaymentViewId; // methods
+ *   });
+ * });
+ * @example
+ * <caption>Listen on various events from the card view</caption>
+ * braintree.dropin.create({
+ *   authorization: 'CLIENT_AUTHORIZATION',
+ *   container: '#dropin-container'
+ * }, function (err, dropinInstance) {
+ *   dropinInstance.on('card:focus', function (event) {
+ *     // a card field was focussed
+ *   });
+ *   dropinInstance.on('card:blur', function (event) {
+ *     // a card field was blurred
+ *   });
+ *   dropinInstance.on('card:validityChange', function (event) {
+ *     // the card form went from invalid to valid or valid to invalid
  *   });
  * });
  */
@@ -220,7 +298,7 @@ HAS_RAW_PAYMENT_DATA[constants.paymentMethodTypes.applePay] = true;
  */
 
 /**
- * This event is emitted when the payment method available in Drop-in changes. This includes when the state of Drop-in transitions from having no payment method available to having a payment method available and when the payment method available changes. This event is not fired if there is no payment method available on initialization. To check if there is a payment method requestable on initialization, use {@link Dropin#isPaymentMethodRequestable|`isPaymentMethodRequestable`}.
+ * This event is emitted when the payment method available in Drop-in changes. This includes when the state of Drop-in transitions from having no payment method available to having a payment method available and when the kind of payment method available changes. This event is not fired if there is no payment method available on initialization. To check if there is a payment method requestable on initialization, use {@link Dropin#isPaymentMethodRequestable|`isPaymentMethodRequestable`}.
  * @event Dropin#paymentMethodRequestable
  * @type {Dropin~paymentMethodRequestablePayload}
  */
@@ -245,6 +323,94 @@ HAS_RAW_PAYMENT_DATA[constants.paymentMethodTypes.applePay] = true;
  * This event is emitted when the customer selects a new payment option type (e.g. PayPal, PayPal Credit, credit card). This event is not emitted when the user changes between existing saved payment methods. Only relevant when accepting multiple payment options.
  * @event Dropin#paymentOptionSelected
  * @type {Dropin~paymentOptionSelectedPayload}
+ */
+
+/**
+ * This event is emitted when the Drop-in view changes what is presented as the active view.
+ * @event Dropin#changeActiveView
+ * @type {Dropin~changeActiveView}
+ */
+
+/**
+ * @typedef {object} Dropin~changeActiveView
+ * @description The event payload sent from {@link Dropin#on|`on`} with the {@link Dropin#event:changeActiveView|`changeActiveView`} event.
+ * @property {string} previousViewId The id for the previously active view. Possible values are:
+ * * `card` - The credit card form view
+ * * `paypal` - The PayPal view
+ * * `payapCredit` - The PayPal Credit view
+ * * `venmo` - The Venmo View
+ * * `googlePay` - The Google Pay view
+ * * `applePay` - The Apple Pay view
+ * * `methods` - The view presenting the available payment methods (already vaulted or tokenized payment methods)
+ * * `options` - The view presenting the available payment options (where the customer chooses what payment method option to use). Note, if both the methods view and the options view are presented at the same time, `methods` will be shown as the view id.
+ * * `delete-confirmation` - The view where the customer confirms they would like to delete their saved payment method.
+ * @property {string} newViewId The id for the new active view. The possible values are the same as `previousViewId`.
+ */
+
+/**
+ * The underlying [hosted fields `binAvailable` event](http://braintree.github.io/braintree-web/{@pkg bt-web-version}/HostedFields.html#event:binAvailable).
+ * @event Dropin#card:binAvailable
+ * @type {Dropin~card:binAvailable}
+ */
+
+/**
+ * The underlying [hosted fields `blur` event](http://braintree.github.io/braintree-web/{@pkg bt-web-version}/HostedFields.html#event:blur).
+ * @event Dropin#card:blur
+ * @type {Dropin~card:blur}
+ */
+
+/**
+ * The underlying [hosted fields `cardTypeChange` event](http://braintree.github.io/braintree-web/{@pkg bt-web-version}/HostedFields.html#event:cardTypeChange).
+ * @event Dropin#card:cardTypeChange
+ * @type {Dropin~card:cardTypeChange}
+ */
+
+/**
+ * The underlying [hosted fields `empty` event](http://braintree.github.io/braintree-web/{@pkg bt-web-version}/HostedFields.html#event:empty).
+ * @event Dropin#card:empty
+ * @type {Dropin~card:empty}
+ */
+
+/**
+ * The underlying [hosted fields `focus` event](http://braintree.github.io/braintree-web/{@pkg bt-web-version}/HostedFields.html#event:focus).
+ * @event Dropin#card:focus
+ * @type {Dropin~card:focus}
+ */
+
+/**
+ * The underlying [hosted fields `inputSubmitRequest` event](http://braintree.github.io/braintree-web/{@pkg bt-web-version}/HostedFields.html#event:inputSubmitRequest).
+ * @event Dropin#card:inputSubmitRequest
+ * @type {Dropin~card:inputSubmitRequest}
+ */
+
+/**
+ * The underlying [hosted fields `notEmpty` event](http://braintree.github.io/braintree-web/{@pkg bt-web-version}/HostedFields.html#event:notEmpty).
+ * @event Dropin#card:notEmpty
+ * @type {Dropin~card:notEmpty}
+ */
+
+/**
+ * The underlying [hosted fields `validityChange` event](http://braintree.github.io/braintree-web/{@pkg bt-web-version}/HostedFields.html#event:validityChange).
+ * @event Dropin#card:validityChange
+ * @type {Dropin~card:validityChange}
+ */
+
+/**
+ * The underlying [3D Secure `customer-canceled` event](http://braintree.github.io/braintree-web/{@pkg bt-web-version}/ThreeDSecure.html#event:customer-canceled).
+ * @event Dropin#3ds:customer-canceled
+ * @type {Dropin~3ds:customer-canceled}
+ */
+
+/**
+ * The underlying [3D Secure `authentication-modal-render` event](http://braintree.github.io/braintree-web/{@pkg bt-web-version}/ThreeDSecure.html#event:authentication-modal-render).
+ * @event Dropin#3ds:authentication-modal-render
+ * @type {Dropin~3ds:authentication-modal-render}
+ */
+
+/**
+ * The underlying [3D Secure `authentication-modal-close` event](http://braintree.github.io/braintree-web/{@pkg bt-web-version}/ThreeDSecure.html#event:authentication-modal-close).
+ * @event Dropin#3ds:authentication-modal-close
+ * @type {Dropin~3ds:authentication-modal-close}
  */
 
 /**
@@ -278,8 +444,6 @@ Dropin.prototype._initialize = function (callback) {
   var localizedStrings, localizedHTML;
   var self = this;
   var container = self._merchantConfiguration.container || self._merchantConfiguration.selector;
-
-  self._injectStylesheet();
 
   if (!container) {
     analytics.sendEvent(self._client, 'configuration-error');
@@ -341,9 +505,12 @@ Dropin.prototype._initialize = function (callback) {
 
   self._model = new DropinModel({
     client: self._client,
+    container: container,
     componentID: self._componentID,
     merchantConfiguration: self._merchantConfiguration
   });
+
+  self._injectStylesheet();
 
   self._model.initialize().then(function () {
     self._model.on('cancelInitialization', function (err) {
@@ -353,7 +520,7 @@ Dropin.prototype._initialize = function (callback) {
     });
 
     self._model.on('asyncDependenciesReady', function () {
-      if (self._model.dependencySuccessCount >= 1) {
+      if (self._model.hasAtLeastOneAvailablePaymentOption()) {
         analytics.sendEvent(self._client, 'appeared');
         self._disableErroredPaymentMethods();
 
@@ -367,16 +534,10 @@ Dropin.prototype._initialize = function (callback) {
       }
     });
 
-    self._model.on('paymentMethodRequestable', function (event) {
-      self._emit('paymentMethodRequestable', event);
-    });
-
-    self._model.on('noPaymentMethodRequestable', function () {
-      self._emit('noPaymentMethodRequestable');
-    });
-
-    self._model.on('paymentOptionSelected', function (event) {
-      self._emit('paymentOptionSelected', event);
+    PASS_THROUGH_EVENTS.forEach(function (eventName) {
+      self._model.on(eventName, function (event) {
+        self._emit(eventName, event);
+      });
     });
 
     return self._setUpDependenciesAndViews();
@@ -433,6 +594,28 @@ Dropin.prototype.updateConfiguration = function (property, key, value) {
 };
 
 /**
+ * Get a list of the available payment methods presented to the user. This is useful for knowing if a paricular payment option was presented to a customer that is browser dependant such as Apple Pay, Google Pay and Venmo. Returns an array of strings. Possible values:
+ * * `applePay`
+ * * `card`
+ * * `googlePay`
+ * * `paypalCredit`
+ * * `paypal`
+ * * `venmo`
+ *
+ * @public
+ * @returns {string[]} An array of possible payment options.
+ * @example
+ * var paymentOptions = dropinInstance.getAvailablePaymentOptions(); // ['card', 'venmo', 'paypal']
+ *
+ * if (paymentOptions.includes('venmo')) {
+ *   // special logic for when venmo is displayed
+ * }
+ */
+Dropin.prototype.getAvailablePaymentOptions = function () {
+  return this._model.supportedPaymentOptions;
+};
+
+/**
  * Removes the currently selected payment method and returns the customer to the payment options view. Does not remove vaulted payment methods.
  * @public
  * @returns {void}
@@ -478,11 +661,10 @@ Dropin.prototype._setUpDataCollector = function () {
   var self = this;
   var config = assign({}, self._merchantConfiguration.dataCollector, {client: self._client});
 
-  this._model.asyncDependencyStarting();
   this._dataCollector = new DataCollector(config);
 
   this._dataCollector.initialize().then(function () {
-    self._model.asyncDependencyReady();
+    self._model.asyncDependencyReady('dataCollector');
   }).catch(function (err) {
     self._model.cancelInitialization(new DropinError({
       message: 'Data Collector failed to set up.',
@@ -493,14 +675,11 @@ Dropin.prototype._setUpDataCollector = function () {
 
 Dropin.prototype._setUpThreeDSecure = function () {
   var self = this;
-  var config = assign({}, this._merchantConfiguration.threeDSecure);
 
-  this._model.asyncDependencyStarting();
-
-  this._threeDSecure = new ThreeDSecure(this._client, config);
+  this._threeDSecure = new ThreeDSecure(this._client, this._model);
 
   this._threeDSecure.initialize().then(function () {
-    self._model.asyncDependencyReady();
+    self._model.asyncDependencyReady('threeDSecure');
   }).catch(function (err) {
     self._model.cancelInitialization(new DropinError({
       message: '3D Secure failed to set up.',
@@ -537,22 +716,17 @@ Dropin.prototype._removeUnvaultedPaymentMethods = function (filter) {
 };
 
 Dropin.prototype._navigateToInitialView = function () {
-  var hasNoSavedPaymentMethods, hasOnlyOneSupportedPaymentOption;
   var isOnMethodsView = this._mainView.primaryView.ID === paymentMethodsViewID;
 
-  if (isOnMethodsView) {
-    hasNoSavedPaymentMethods = this._model.getPaymentMethods().length === 0;
-
-    if (hasNoSavedPaymentMethods) {
-      hasOnlyOneSupportedPaymentOption = this._model.supportedPaymentOptions.length === 1;
-
-      if (hasOnlyOneSupportedPaymentOption) {
-        this._mainView.setPrimaryView(this._model.supportedPaymentOptions[0]);
-      } else {
-        this._mainView.setPrimaryView(paymentOptionsViewID);
-      }
-    }
+  if (!isOnMethodsView) {
+    return;
   }
+
+  if (this._model.hasPaymentMethods()) {
+    return;
+  }
+
+  this._mainView.setPrimaryView(this._model.getInitialViewId());
 };
 
 Dropin.prototype._supportsPaymentOption = function (paymentOption) {
@@ -620,12 +794,14 @@ Dropin.prototype._handleAppSwitch = function () {
  * If a payment method is not available, an error will appear in the UI. When a callback is used, an error will be passed to it. If no callback is used, the returned Promise will be rejected with an error.
  * @public
  * @param {object} [options] All options for requesting a payment method.
- * @param {object} [options.threeDSecure] Any of the options in the [Braintree 3D Secure client reference](https://braintree.github.io/braintree-web/{@pkg bt-web-version}/ThreeDSecure.html#verifyCard) except for `nonce`, `bin`, and `onLookupComplete`. If `amount` is provided, it will override the value of `amount` in the [3D Secure create options](module-braintree-web-drop-in.html#~threeDSecureOptions). The more options provided, the more likely the customer will not need to answer a 3DS challenge. The recommended fields for achieving a 3DS v2 verification are:
+ * @param {object} [options.threeDSecure] Any of the options in the [Braintree 3D Secure client reference](https://braintree.github.io/braintree-web/{@pkg bt-web-version}/ThreeDSecure.html#verifyCard) except for `nonce`, `bin`, and `onLookupComplete`. If `amount` is provided, it will override the value of `amount` in the [3D Secure create options](module-braintree-web-drop-in.html#~threeDSecureOptions). The more options provided, the more likely the customer will not need to answer a 3DS challenge. When 3DS is enabled, both credit cards and non-network tokenized Google Pay cards will perform verfication. The recommended fields for achieving a 3DS v2 verification are:
  * * `email`
  * * `mobilePhoneNumber`
  * * `billingAddress`
+ *
+ * For an example of verifying 3D Secure within Drop-in, [check out this codepen](https://codepen.io/braintree/pen/KjWqGx).
  * @param {callback} [callback] May be used as the only parameter in requestPaymentMethod if no `options` are provided. The first argument will be an error if no payment method is available and will otherwise be null. The second argument will be an object containing a payment method nonce; either a {@link Dropin~cardPaymentMethodPayload|cardPaymentMethodPayload}, a {@link Dropin~paypalPaymentMethodPayload|paypalPaymentMethodPayload}, a {@link Dropin~venmoPaymentMethodPayload|venmoPaymentMethodPayload}, a {@link Dropin~googlePayPaymentMethodPayload|googlePayPaymentMethodPayload} or an {@link Dropin~applePayPaymentMethodPayload|applePayPaymentMethodPayload}. If no callback is provided, `requestPaymentMethod` will return a promise.
- * @returns {void|Promise} Returns a promise if no callback is provided.
+ * @returns {(void|Promise)} Returns a promise if no callback is provided.
  * @example <caption>Requesting a payment method</caption>
  * var form = document.querySelector('#my-form');
  * var hiddenNonceInput = document.querySelector('#my-nonce-input');
@@ -674,7 +850,7 @@ Dropin.prototype._handleAppSwitch = function () {
  *      return;
  *    }
  *
- *    if (payload.liabilityShifted || payload.type !== 'CreditCard') {
+ *    if (payload.liabilityShifted || (payload.type !== 'CreditCard' && payload.type !== 'AndroidPayCard')) {
  *      hiddenNonceInput.value = payload.nonce;
  *      form.submit();
  *    } else {
@@ -686,26 +862,41 @@ Dropin.prototype._handleAppSwitch = function () {
  * });
  */
 Dropin.prototype.requestPaymentMethod = function (options) {
+  // NEXT_MAJOR_VERSION
+  // what should happen when this method is called while a payment
+  // method is already being requested? Should it error? Should
+  // they both resolve with the payload from the original request?
+  // this is only important because when doing 3ds, multiple
+  // requests in quick succession can get you into a state
+  // where it errors because the 3ds verification is called twice
   var self = this;
 
   options = options || {};
 
   return this._mainView.requestPaymentMethod().then(function (payload) {
-    if (self._threeDSecure && payload.type === constants.paymentMethodTypes.card && payload.liabilityShifted == null) {
+    if (self._shouldPerformThreeDSecureVerification(payload)) {
       self._mainView.showLoadingIndicator();
 
       return self._threeDSecure.verify(payload, options.threeDSecure).then(function (newPayload) {
         payload.nonce = newPayload.nonce;
         payload.liabilityShifted = newPayload.liabilityShifted;
         payload.liabilityShiftPossible = newPayload.liabilityShiftPossible;
+        payload.threeDSecureInfo = newPayload.threeDSecureInfo;
 
         self._mainView.hideLoadingIndicator();
 
         return payload;
       }).catch(function (err) {
-        self._mainView.hideLoadingIndicator();
+        self.clearSelectedPaymentMethod();
 
-        return Promise.reject(err);
+        return self._model.refreshPaymentMethods().then(function () {
+          self._mainView.hideLoadingIndicator();
+
+          return Promise.reject(new DropinError({
+            message: 'Something went wrong during 3D Secure authentication. Please try again.',
+            braintreeWebError: err
+          }));
+        });
       });
     }
 
@@ -721,6 +912,26 @@ Dropin.prototype.requestPaymentMethod = function (options) {
   });
 };
 
+Dropin.prototype._shouldPerformThreeDSecureVerification = function (payload) {
+  if (!this._threeDSecure) {
+    return false;
+  }
+
+  if (payload.liabilityShifted != null) {
+    return false;
+  }
+
+  if (payload.type === constants.paymentMethodTypes.card) {
+    return true;
+  }
+
+  if (payload.type === constants.paymentMethodTypes.googlePay && payload.details.isNetworkTokenized === false) {
+    return true;
+  }
+
+  return false;
+};
+
 Dropin.prototype._removeStylesheet = function () {
   var stylesheet = document.getElementById(constants.STYLESHEET_ID);
 
@@ -730,24 +941,31 @@ Dropin.prototype._removeStylesheet = function () {
 };
 
 Dropin.prototype._injectStylesheet = function () {
-  var stylesheetUrl, assetsUrl;
+  var assetsUrl;
+  var loadStylesheetOptions = {
+    id: constants.STYLESHEET_ID
+  };
 
   if (document.getElementById(constants.STYLESHEET_ID)) { return; }
 
   assetsUrl = this._client.getConfiguration().gatewayConfiguration.assetsUrl;
-  stylesheetUrl = assetsUrl + '/web/dropin/' + VERSION + '/css/dropin@DOT_MIN.css';
+  loadStylesheetOptions.href = assetsUrl + '/web/dropin/' + VERSION + '/css/dropin@DOT_MIN.css';
 
-  assets.loadStylesheet({
-    href: stylesheetUrl,
-    id: constants.STYLESHEET_ID
-  });
+  if (this._model.isInShadowDom) {
+    // if Drop-in is in the shadow DOM, put the
+    // style sheet in the shadow DOM node instead of
+    // in the head of the document
+    loadStylesheetOptions.container = this._model.rootNode;
+  }
+
+  assets.loadStylesheet(loadStylesheetOptions);
 };
 
 /**
  * Cleanly remove anything set up by {@link module:braintree-web-drop-in|dropin.create}. This may be be useful in a single-page app.
  * @public
  * @param {callback} [callback] Called on completion, containing an error if one occurred. No data is returned if teardown completes successfully. If no callback is provided, `teardown` will return a promise.
- * @returns {void|Promise} Returns a promise if no callback is provided.
+ * @returns {(void|Promise)} Returns a promise if no callback is provided.
  */
 Dropin.prototype.teardown = function () {
   var teardownError;
@@ -834,6 +1052,10 @@ function formatPaymentMethodPayload(paymentMethod) {
   if (typeof paymentMethod.liabilityShiftPossible === 'boolean') {
     formattedPaymentMethod.liabilityShifted = paymentMethod.liabilityShifted;
     formattedPaymentMethod.liabilityShiftPossible = paymentMethod.liabilityShiftPossible;
+  }
+
+  if (paymentMethod.threeDSecureInfo) {
+    formattedPaymentMethod.threeDSecureInfo = paymentMethod.threeDSecureInfo;
   }
 
   if (paymentMethod.deviceData) {

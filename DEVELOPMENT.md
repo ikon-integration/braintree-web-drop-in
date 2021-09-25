@@ -58,7 +58,7 @@ Adding a new payment method requires changing a number of files. For each of the
 
 ### Constants
 
-There are a few constants that should be updated in [src/constants.js](https://github.com/braintree/braintree-web-drop-in/blob/master/src/constants.js).
+There are a few constants that should be updated in [src/constants.js](https://github.com/braintree/braintree-web-drop-in/blob/main/src/constants.js).
 
   * `paymentOptionIDs` - In this case, we'll add `fooPay: 'fooPay'` to the list
   * `paymentMethodTypes` - For this, we need to map `fooPay` to whatever the Braintree Gateway lists the tokenization type as. So, if the Gateway lists it as `FooPayAccount`, we should add `fooPay: 'FooPayAccount'`
@@ -66,7 +66,7 @@ There are a few constants that should be updated in [src/constants.js](https://g
 
 ### Translations
 
-Unless you need to translate error messages or other UI elements (see below), simply add your payment method name to [src/translations/en_US.js](https://github.com/braintree/braintree-web-drop-in/blob/master/src/translations/en_US.js). Braintree developers will have to work with PayPal to provide the translation files for them.
+Unless you need to translate error messages or other UI elements (see below), simply add your payment method name to [src/translations/en_US.js](https://github.com/braintree/braintree-web-drop-in/blob/main/src/translations/en_US.js). Braintree developers will have to work with PayPal to provide the translation files for them.
 
 ```javascript
 'FooPay': 'FooPay'
@@ -74,7 +74,7 @@ Unless you need to translate error messages or other UI elements (see below), si
 
 ### Drop-in Model
 
-The [src/dropin-model.js](https://github.com/braintree/braintree-web-drop-in/blob/master/src/dropin-model.js) must be updated so that Drop-in can check if the payment option is available for the customer to use.
+The [src/dropin-model.js](https://github.com/braintree/braintree-web-drop-in/blob/main/src/dropin-model.js) must be updated so that Drop-in can check if the payment option is available for the customer to use.
 
 Primarily, the `isPaymentOptionEnabled` function must be adjusted to account for the new payment method. It checks if the merchant is enabled for the particular payment method in the Braintree gateway, if the merchant has configured Drop-in to enable the payemnt method, and any other requirements the payment method may have to be used in Drop-in. For instance, if FooPay can only be used if the `FooPay` global exists on the window, we would probably add code that looks like this to `isPaymentOptionEnabled`.
 
@@ -105,7 +105,7 @@ var VAULTED_PAYMENT_METHOD_TYPES_THAT_SHOULD_BE_HIDDEN = [
 
 ### Main View
 
-The [src/html/main.html](https://github.com/braintree/braintree-web-drop-in/blob/master/src/html/main.html) must be updated with a div for the payment method's view. This is the UI where the payment method is initiated by the customer (filling the card form, pushing the PayPal button, etc). In our example, FooPay requires a button for the customer to press to initate the flow.
+The [src/html/main.html](https://github.com/braintree/braintree-web-drop-in/blob/main/src/html/main.html) must be updated with a div for the payment method's view. This is the UI where the payment method is initiated by the customer (filling the card form, pushing the PayPal button, etc). In our example, FooPay requires a button for the customer to press to initate the flow.
 
 ```html
 <div data-braintree-id="foo-pay" class="braintree-foo-pay braintree-sheet">
@@ -125,7 +125,7 @@ The [src/html/main.html](https://github.com/braintree/braintree-web-drop-in/blob
 </div>
 ```
 
-We will also need to update [src/less/main.less](https://github.com/braintree/braintree-web-drop-in/blob/master/src/less/main.less) to make the payment sheet view visible when selected. Add `.braintree-show-{payment-method-name} .braintree-{payment-method-name}` to the list of classes in the "Dropin Visibility States" section.
+We will also need to update [src/less/main.less](https://github.com/braintree/braintree-web-drop-in/blob/main/src/less/main.less) to make the payment sheet view visible when selected. Add `.braintree-show-{payment-method-name} .braintree-{payment-method-name}` to the list of classes in the "Dropin Visibility States" section.
 
 ```less
 // ...
@@ -151,7 +151,7 @@ You will also need to add your payment method to the `.braintree-show-{payment-m
 
 ### Payment Option|Method Views
 
-You will need to add your payment method to the switch statement in [src/views/payment-method-view.js](https://github.com/braintree/braintree-web-drop-in/blob/master/src/views/payment-method-view.js).
+You will need to add your payment method to the switch statement in [src/views/payment-method-view.js](https://github.com/braintree/braintree-web-drop-in/blob/main/src/views/payment-method-view.js).
 
 If your payment method is vaultable on the client, set the `@TITLE` to be an indentifier for the account. Such as a username, email, last 4 numbers of the account, etc. The `@SUBTITLE` will be the payment method name.
 
@@ -175,7 +175,7 @@ case paymentMethodTypes.fooPay:
   break;
 ```
 
-Similiarly, the switch statement in [src/views/payment-options-view.js](https://github.com/braintree/braintree-web-drop-in/blob/master/src/views/payment-options-view.js) will also need to be updated.
+Similiarly, the switch statement in [src/views/payment-options-view.js](https://github.com/braintree/braintree-web-drop-in/blob/main/src/views/payment-options-view.js) will also need to be updated.
 
 ```javascript
 case paymentOptionIDs.fooPay:
@@ -254,13 +254,13 @@ btFooPay.create({
 });
 ```
 
-Add the payment method view to the index file at [src/views/payment-sheet-views/index.js](https://github.com/braintree/braintree-web-drop-in/blob/master/src/views/payment-sheet-views/index.js).
+Add the payment method view to the index file at [src/views/payment-sheet-views/index.js](https://github.com/braintree/braintree-web-drop-in/blob/main/src/views/payment-sheet-views/index.js).
 
 ```javascript
 result[paymentOptionIDs.fooPay] = require('./foo-pay-view');
 ```
 
-Finally, we just need to add a map for the Gateway Payment Method Type to the translation string for that type in [src/views/payment-methods-view.js](https://github.com/braintree/braintree-web-drop-in/blob/master/src/views/payment-methods-view.js).
+Finally, we just need to add a map for the Gateway Payment Method Type to the translation string for that type in [src/views/payment-methods-view.js](https://github.com/braintree/braintree-web-drop-in/blob/main/src/views/payment-methods-view.js).
 
 ```javascript
 var PAYMENT_METHOD_TYPE_TO_TRANSLATION_STRING = {
@@ -281,7 +281,7 @@ FooPayView.prototype.updateConfiguration = function (key, value) {
 };
 ```
 
-Next, open [src/dropin.js](https://github.com/braintree/braintree-web-drop-in/blob/master/src/dropin.js) and update the `UPDATABLE_CONFIGURATION_OPTIONS` constant to include your payment method:
+Next, open [src/dropin.js](https://github.com/braintree/braintree-web-drop-in/blob/main/src/dropin.js) and update the `UPDATABLE_CONFIGURATION_OPTIONS` constant to include your payment method:
 
 ```javascript
 var UPDATABLE_CONFIGURATION_OPTIONS = [
@@ -308,7 +308,7 @@ var UPDATABLE_CONFIGURATION_OPTIONS_THAT_REQUIRE_UNVAULTED_PAYMENT_METHODS_TO_BE
 
 If you don't need to handle specific errors, you can let Drop-in populate a generic error. If you do need to handle a specific error, you can pass the key of a specific string to use in the translation file. 
 
-Alternatively, you can pass the `BraintreeError` from braintree-web into `this.model.reportError` and create a translation string for the error code, where the property name is the camel cased version of the code with `Error` appended to it. (See `hostedFieldsTokenization` errors in [src/translations/en_US.js](https://github.com/braintree/braintree-web-drop-in/blob/master/src/translations/en_US.js) for examples).
+Alternatively, you can pass the `BraintreeError` from braintree-web into `this.model.reportError` and create a translation string for the error code, where the property name is the camel cased version of the code with `Error` appended to it. (See `hostedFieldsTokenization` errors in [src/translations/en_US.js](https://github.com/braintree/braintree-web-drop-in/blob/main/src/translations/en_US.js) for examples).
 
 ```javascript
 fooPayTokenizationFailedError: 'Something went wrong when connecting to FooPay.'
@@ -316,7 +316,7 @@ fooPayTokenizationFailedError: 'Something went wrong when connecting to FooPay.'
 
 ### Documentation
 
-Add documentation info to [src/dropin.js](https://github.com/braintree/braintree-web-drop-in/blob/master/src/dropin.js), [src/index.js](https://github.com/braintree/braintree-web-drop-in/blob/master/src/index.js), and [jsdoc/home.md](https://github.com/braintree/braintree-web-drop-in/blob/master/jsdoc/home.md)
+Add documentation info to [src/dropin.js](https://github.com/braintree/braintree-web-drop-in/blob/main/src/dropin.js), [src/index.js](https://github.com/braintree/braintree-web-drop-in/blob/main/src/index.js), and [jsdoc/home.md](https://github.com/braintree/braintree-web-drop-in/blob/main/jsdoc/home.md)
 
 ## Unit tests
 
@@ -328,22 +328,43 @@ npm test
 
 ## Integration tests
 
-Copy the `env.example` file to `.env` and filling in the env variables with [SauceLabs](https://saucelabs.com/) and [PayPal Sandbox](https://developer.paypal.com/docs/classic/lifecycle/sb_about-accounts/#creating-sandbox-test-accounts) credentials:
+We use [Browserstack](https://www.browserstack.com) to automate end to end testing on Google Chrome, Safari, Firefox and Internet Explorer 11.
 
+First, [sign up for a free open source Browserstack account](https://www.browserstack.com/open-source?ref=pricing) and a and [PayPal Sandbox](https://developer.paypal.com/docs/classic/lifecycle/sb_about-accounts/#creating-sandbox-test-accounts).
+
+Copy the `.env.example` file to `.env`
+
+```sh
+cp .env.example .env
 ```
-SAUCE_USERNAME=<SAUCE_USERNAME here>
-SAUCE_ACCESS_KEY=<SAUCE_ACCESS_KEY here>
+
+Fill in the `BROWSERSTACK_USERNAME` and `BROWSERSTACK_ACCESS_KEY` environmental variables with your Browserstack credentials:
+
+```sh
+BROWSERSTACK_USERNAME=username
+BROWSERSTACK_ACCESS_KEY=access_key
+```
+
+Fill in the `PAYPAL_USERNAME` and `PAYPAL_PASSWORD` environmental variables with your PayPal sandbox customer credentials:
+
+```sh
 PAYPAL_USERNAME=<PayPal sandbox username here>
 PAYPAL_PASSWORD=<PayPal sandbox password>
 ```
 
-To start the tests, run:
+To start the tests, start the app:
+
+```sh
+npm run development
+```
+
+And run the integration test command:
 
 ```bash
 npm run test:integration
 ```
 
-This will run the tests from `spec` in the browsers specified in [`spec/spec_helper.rb`](./spec/spec_helper.rb).
+This will run the tests from `test/integration` in the browsers specified in [`wdio.conf.js`](./wdio.conf.js).
 
 To run only the PayPal tests, run:
 
@@ -363,16 +384,39 @@ By default, each test will retry once if it fails. PayPal tests will retry up to
 DISABLE_RETRIES=true npm run test:integration
 ```
 
-You can mark a test with an `:only` tag:
+You can mark a test with an `.only` tag:
 
-```ruby
-it "asserts something", :only do
+```js
+it.only('asserts something', function () {
 ```
 
 And then run the test command to run only that test:
 
 ```bash
-npm run test:integration
+npx wdio wdio.conf.js --spec test/integration/path-to-test.test.js
+```
+
+To run tests in only one browser, prefix the test command with an `ONLY_BROWSERS` env variable:
+
+```sh
+# run only in chrome browser
+ONLY_BROWSERS=chrome npm run test:integration
+
+# run only in internet explorer 11 browser
+ONLY_BROWSERS=ie npm run test:integration
+
+# run only in safari browser
+ONLY_BROWSERS=safari npm run test:integration
+
+# run only in firefox browser
+ONLY_BROWSERS=firefox npm run test:integration
+```
+
+To run tests in certain browsers, prefix the test command with an `ONLY_BROWSERS` env variable, with each browser comma separated:
+
+```sh
+# run only in internet explorer 11 and chrome browsers
+ONLY_BROWSERS=ie,chrome npm run test:integration
 ```
 
 ## Translations

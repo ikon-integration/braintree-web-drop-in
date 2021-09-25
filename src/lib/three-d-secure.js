@@ -3,19 +3,38 @@
 var assign = require('./assign').assign;
 var threeDSecure = require('braintree-web/three-d-secure');
 
-function ThreeDSecure(client, merchantConfiguration) {
+var DEFAULT_ACS_WINDOW_SIZE = '03';
+var PASSTHROUGH_EVENTS = [
+  'customer-canceled',
+  'authentication-modal-render',
+  'authentication-modal-close'
+];
+
+function ThreeDSecure(client, model) {
   this._client = client;
-  this._config = merchantConfiguration;
+  this._model = model;
+  this._config = assign({}, model.merchantConfiguration.threeDSecure);
 }
 
 ThreeDSecure.prototype.initialize = function () {
   var self = this;
-
-  return threeDSecure.create({
+  var options = {
     client: this._client,
     version: 2
-  }).then(function (instance) {
+  };
+
+  if (this._config.cardinalSDKConfig) {
+    options.cardinalSDKConfig = this._config.cardinalSDKConfig;
+  }
+
+  return threeDSecure.create(options).then(function (instance) {
     self._instance = instance;
+
+    PASSTHROUGH_EVENTS.forEach(function (eventName) {
+      self._instance.on(eventName, function (event) {
+        self._model._emit('3ds:' + eventName, event);
+      });
+    });
   });
 };
 
@@ -32,6 +51,9 @@ ThreeDSecure.prototype.verify = function (payload, merchantProvidedData) {
       next();
     }
   });
+
+  verifyOptions.additionalInformation = verifyOptions.additionalInformation || {};
+  verifyOptions.additionalInformation.acsWindowSize = verifyOptions.additionalInformation.acsWindowSize || DEFAULT_ACS_WINDOW_SIZE;
 
   return this._instance.verifyCard(verifyOptions);
 };

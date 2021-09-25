@@ -1,10 +1,8 @@
-'use strict';
 
 var clientToken, clientTokenWithCustomerID, fakeBTInstances;
 var tokenizationKey = 'development_testing_merchant_id';
 var braintreeVersion = require('braintree-web').VERSION;
 var DropinModel = require('../../src/dropin-model');
-var sinon = require('sinon');
 
 function configuration() {
   return {
@@ -46,20 +44,6 @@ function configuration() {
   };
 }
 
-function getState() {
-  return {
-    cards: [{type: 'visa'}],
-    fields: {
-      number: {
-        isValid: true
-      },
-      expirationDate: {
-        isValid: false
-      }
-    }
-  };
-}
-
 clientToken = configuration().gatewayConfiguration;
 clientToken.authorizationFingerprint = 'encoded_auth_fingerprint';
 clientToken = btoa(JSON.stringify(clientToken));
@@ -73,12 +57,28 @@ fakeBTInstances = {
     deviceData: 'device-data',
     teardown: function () {}
   },
-  hostedFields: {
-    getState: getState,
-    on: function () {},
-    setAttribute: function () {},
-    setMessage: function () {},
-    tokenize: function () {}
+  hostedFields() {
+    return {
+      clear: jest.fn(),
+      focus: jest.fn(),
+      getState: jest.fn().mockReturnValue({
+        cards: [{ type: 'visa' }],
+        fields: {
+          number: {
+            isValid: true
+          },
+          expirationDate: {
+            isValid: true
+          }
+        }
+      }),
+      on: jest.fn(),
+      removeAttribute: jest.fn(),
+      setAttribute: jest.fn(),
+      setMessage: jest.fn(),
+      teardown: jest.fn().mockResolvedValue(),
+      tokenize: jest.fn().mockResolvedValue({})
+    };
   },
   paypal: {
     createPayment: function () {},
@@ -87,7 +87,8 @@ fakeBTInstances = {
   threeDSecure: {
     verifyCard: function () {},
     cancelVerifyCard: function () {},
-    teardown: function () {}
+    teardown: function () {},
+    on: function () {}
   }
 };
 
@@ -95,9 +96,9 @@ function client(conf) {
   conf = conf || configuration();
 
   return {
-    _request: sinon.stub().resolves(),
-    request: sinon.stub().resolves(),
-    getConfiguration: sinon.stub().returns(conf),
+    _request: jest.fn().mockResolvedValue(),
+    request: jest.fn().mockResolvedValue(),
+    getConfiguration: jest.fn().mockReturnValue(conf),
     getVersion: function () { return braintreeVersion; }
   };
 }
@@ -106,10 +107,12 @@ function model(options) {
   var modelInstance;
 
   options = options || modelOptions();
+  options.container = options.container || document.createElement('div');
 
   modelInstance = new DropinModel(options);
 
-  sinon.stub(modelInstance, 'getVaultedPaymentMethods').resolves([]);
+  jest.spyOn(modelInstance, 'getVaultedPaymentMethods').mockResolvedValue([]);
+  jest.spyOn(modelInstance, '_emit');
 
   return modelInstance;
 }
@@ -131,7 +134,7 @@ module.exports = {
   clientTokenWithCustomerID: clientTokenWithCustomerID,
   configuration: configuration,
   dataCollectorInstance: fakeBTInstances.dataCollector,
-  hostedFieldsInstance: fakeBTInstances.hostedFields,
+  hostedFields: fakeBTInstances.hostedFields,
   paypalInstance: fakeBTInstances.paypal,
   threeDSecureInstance: fakeBTInstances.threeDSecure,
   modelOptions: modelOptions,

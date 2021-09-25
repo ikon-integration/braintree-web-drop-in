@@ -10,6 +10,7 @@ var PaymentOptionsView = require('./payment-options-view');
 var DeleteConfirmationView = require('./delete-confirmation-view');
 var addSelectionEventHandler = require('../lib/add-selection-event-handler');
 var Promise = require('../lib/promise');
+var wait = require('../lib/wait');
 var supportsFlexbox = require('../lib/supports-flexbox');
 
 var CHANGE_ACTIVE_PAYMENT_METHOD_TIMEOUT = require('../constants').CHANGE_ACTIVE_PAYMENT_METHOD_TIMEOUT;
@@ -92,15 +93,24 @@ MainView.prototype._initialize = function () {
   addSelectionEventHandler(this.toggle, this.toggleAdditionalOptions.bind(this));
 
   this.model.on('changeActivePaymentMethod', function () {
-    setTimeout(function () {
-      this.setPrimaryView(PaymentMethodsView.ID);
-    }.bind(this), CHANGE_ACTIVE_PAYMENT_METHOD_TIMEOUT);
+    wait.delay(CHANGE_ACTIVE_PAYMENT_METHOD_TIMEOUT).then(function () {
+      var id = PaymentMethodsView.ID;
+
+      // if Drop-in gets into the state where it's told to go to the methods
+      // view, but there are no saved payment methods, it should instead
+      // redirect to the view it started on
+      if (!this.model.hasPaymentMethods()) {
+        id = this.model.getInitialViewId();
+      }
+
+      this.setPrimaryView(id);
+    }.bind(this));
   }.bind(this));
 
-  this.model.on('changeActivePaymentView', this._onChangeActivePaymentMethodView.bind(this));
+  this.model.on('changeActiveView', this._onChangeActiveView.bind(this));
 
   this.model.on('removeActivePaymentMethod', function () {
-    var activePaymentView = this.getView(this.model.getActivePaymentView());
+    var activePaymentView = this.getView(this.model.getActivePaymentViewId());
 
     if (activePaymentView && typeof activePaymentView.removeActivePaymentMethod === 'function') {
       activePaymentView.removeActivePaymentMethod();
@@ -131,16 +141,17 @@ MainView.prototype._initialize = function () {
   this._sendToDefaultView();
 };
 
-MainView.prototype._onChangeActivePaymentMethodView = function (id) {
+MainView.prototype._onChangeActiveView = function (data) {
+  var id = data.newViewId;
   var activePaymentView = this.getView(id);
 
   if (id === PaymentMethodsView.ID) {
     classList.add(this.paymentMethodsViews.container, 'braintree-methods--active');
     classList.remove(this.sheetContainer, 'braintree-sheet--active');
   } else {
-    setTimeout(function () {
+    wait.delay(0).then(function () {
       classList.add(this.sheetContainer, 'braintree-sheet--active');
-    }.bind(this), 0);
+    }.bind(this));
     classList.remove(this.paymentMethodsViews.container, 'braintree-methods--active');
     if (!this.getView(id).getPaymentMethod()) {
       this.model.setPaymentMethodRequestable({
@@ -163,15 +174,15 @@ MainView.prototype.getView = function (id) {
 MainView.prototype.setPrimaryView = function (id, secondaryViewId) {
   var paymentMethod;
 
-  setTimeout(function () {
+  wait.delay(0).then(function () {
     this.element.className = prefixShowClass(id);
     if (secondaryViewId) {
       classList.add(this.element, prefixShowClass(secondaryViewId));
     }
-  }.bind(this), 0);
+  }.bind(this));
 
   this.primaryView = this.getView(id);
-  this.model.changeActivePaymentView(id);
+  this.model.changeActiveView(id);
 
   if (this.paymentSheetViewIDs.indexOf(id) !== -1) {
     if (this.model.getPaymentMethods().length > 0 || this.getView(PaymentOptionsView.ID)) {
@@ -203,7 +214,7 @@ MainView.prototype.setPrimaryView = function (id, secondaryViewId) {
 };
 
 MainView.prototype.requestPaymentMethod = function () {
-  var activePaymentView = this.getView(this.model.getActivePaymentView());
+  var activePaymentView = this.getView(this.model.getActivePaymentViewId());
 
   return activePaymentView.requestPaymentMethod().then(function (payload) {
     analytics.sendEvent(this.client, 'request-payment-method.' + analyticsKinds[payload.type]);
@@ -238,7 +249,7 @@ MainView.prototype.toggleAdditionalOptions = function () {
     sheetViewID = this.paymentSheetViewIDs[0];
 
     classList.add(this.element, prefixShowClass(sheetViewID));
-    this.model.changeActivePaymentView(sheetViewID);
+    this.model.changeActiveView(sheetViewID);
   } else if (isPaymentSheetView) {
     if (this.model.getPaymentMethods().length === 0) {
       this.setPrimaryView(PaymentOptionsView.ID);
@@ -369,11 +380,11 @@ MainView.prototype.finishVaultedPaymentMethodDeletion = function (error) {
   }
 
   return new Promise(function (resolve) {
-    setTimeout(function () {
+    wait.delay(500).then(function () {
       // allow all the views to reset before hiding the loading indicator
       self.hideLoadingIndicator();
       resolve();
-    }, 500);
+    });
   });
 };
 

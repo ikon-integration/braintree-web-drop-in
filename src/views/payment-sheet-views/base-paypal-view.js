@@ -30,10 +30,10 @@ BasePayPalView.prototype.initialize = function () {
   var self = this;
   var paypalType = isCredit ? 'paypalCredit' : 'paypal';
   var paypalConfiguration = this.model.merchantConfiguration[paypalType];
+  var dropinWrapperId = '#braintree--dropin__' + this.model.componentID;
 
   this.paypalConfiguration = assign({}, paypalConfiguration);
 
-  this.model.asyncDependencyStarting();
   asyncDependencyTimeoutHandler = setTimeout(function () {
     self.model.asyncDependencyFailed({
       view: self.ID,
@@ -58,8 +58,18 @@ BasePayPalView.prototype.initialize = function () {
         return paypalInstance.createPayment(self.paypalConfiguration).catch(reportError);
       },
       onAuthorize: function (data) {
+        // NEXT_MAJOR_VERSION change out this vaultPayPal property
+        // to something more generic, such as vaultOnTokenization so
+        // all the vault objects can have the same shape (instead
+        // of being specific to PayPal accounts here)
+        var shouldNotVault = self.paypalConfiguration.vault && self.paypalConfiguration.vault.vaultPayPal === false;
+
+        if (shouldNotVault) {
+          data.vault = false;
+        }
+
         return paypalInstance.tokenizePayment(data).then(function (tokenizePayload) {
-          if (self.paypalConfiguration.flow === 'vault' && !self.model.isGuestCheckout) {
+          if (!shouldNotVault && self.paypalConfiguration.flow === 'vault' && !self.model.isGuestCheckout) {
             tokenizePayload.vaulted = true;
           }
           self.model.addPaymentMethod(tokenizePayload);
@@ -72,18 +82,28 @@ BasePayPalView.prototype.initialize = function () {
       self.paypalConfiguration.locale = locale;
       checkoutJSConfiguration.locale = locale;
     }
+    checkoutJSConfiguration.funding = {
+      disallowed: []
+    };
+
+    Object.keys(global.paypal.FUNDING).forEach(function (key) {
+      if (key === 'PAYPAL' || key === 'CREDIT') {
+        return;
+      }
+      checkoutJSConfiguration.funding.disallowed.push(global.paypal.FUNDING[key]);
+    });
 
     if (isCredit) {
       buttonSelector = '[data-braintree-id="paypal-credit-button"]';
       checkoutJSConfiguration.style.label = 'credit';
     } else {
-      checkoutJSConfiguration.funding = {
-        disallowed: [global.paypal.FUNDING.CREDIT]
-      };
+      checkoutJSConfiguration.funding.disallowed.push(global.paypal.FUNDING.CREDIT);
     }
 
+    buttonSelector = dropinWrapperId + ' ' + buttonSelector;
+
     return global.paypal.Button.render(checkoutJSConfiguration, buttonSelector).then(function () {
-      self.model.asyncDependencyReady();
+      self.model.asyncDependencyReady(paypalType);
       setupComplete = true;
       clearTimeout(asyncDependencyTimeoutHandler);
     });
@@ -116,6 +136,7 @@ BasePayPalView.prototype.updateConfiguration = function (key, value) {
 
 BasePayPalView.isEnabled = function (options) {
   var gatewayConfiguration = options.client.getConfiguration().gatewayConfiguration;
+  var merchantPayPalConfig = options.merchantConfiguration.paypal || options.merchantConfiguration.paypalCredit;
 
   if (!gatewayConfiguration.paypalEnabled) {
     return Promise.resolve(false);
@@ -139,7 +160,7 @@ BasePayPalView.isEnabled = function (options) {
     src: constants.CHECKOUT_JS_SOURCE,
     id: constants.PAYPAL_CHECKOUT_SCRIPT_ID,
     dataAttributes: {
-      'log-level': options.merchantConfiguration.paypal.logLevel || DEFAULT_CHECKOUTJS_LOG_LEVEL
+      'log-level': merchantPayPalConfig.logLevel || DEFAULT_CHECKOUTJS_LOG_LEVEL
     }
   }).then(function () {
     return Promise.resolve(true);

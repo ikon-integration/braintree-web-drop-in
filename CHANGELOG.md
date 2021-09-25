@@ -2,16 +2,220 @@ CHANGELOG
 =========
 
 Unreleased
+----------
+- Update braintree-web to v3.81.1
+
+1.31.2
+------
+- Fix issue where a methods container for a cusotmer with 15+ payment methods would obscure the "Choose Another Way to Pay" button
+- Fix issue where Drop-in could get in an unusable state when `clearSelectedPaymentMethod` was called directly after `requestPaymentMethod`
+- Fix issue where an already filled out card form would not trigger `paymentMethodRequestable` event (#761)
+- Update braintree-web to v3.80.0
+
+1.31.1
+------
+- Fix issue where Apple Pay would stop working after a cancellation
+
+1.31.0
+------
+- Update roles on payment option buttons so that screen readers can read them as buttons
+- Update braintree-web to v3.79.1
+  - Fix issue where card form could not tab forward in iOS Safari 14.5+ (tabbing backward is still broken)
+  - Add support for `cardAdd` param in 3D Secure
+  - Support Maestro cards in Google Pay
+
+1.30.1
+------
+- Update braintree-web to v3.78.2
+  - Fix where card form could navigate with tab button in Desktop Safari
+  - Fix where card form could navigate with arrow buttons in iOS Safari (#662)
+- Fix issue where Apple Pay button would not disable when session begins
+
+1.30.0
+------
+- Update braintree-web to v3.78.0
+  - Apple Pay: Support Elo cards
+  - Google Pay: Support Elo cards
+  - Venmo: Add `paymentMethodUsage` and `displayName` parameter to Venmo create options
+- Update browser-detection to v1.12.0
+- Fix issue where cursor didn't change for Apple Pay on hover (#737)
+- Fix issue where Drop-in couldn't load if `paymentOptionPriority` is set (#739)
+
+1.29.0
+------
+- Update braintree-web to v3.76.4
+- Add `threeDSecure.cardinalSDKConfig` option to `dropin.create`
+- Fix issue where Drop-in would not clear out a tokenized credit card after 3D Secure authentication fails (#694)
+
+1.28.0
+------
+- Update braintree-web to v3.76.3
+- Update browser-detection to v1.11.1
+- Fix issue where card view would not render in a shadow DOM within a shadow DOM
+- Fix issue where Venmo would setup in Firefox for iOS with `allowNewBrowserTab: false` set
+- Improve keyboard navigation
+- Fix issue where scrollbar appears for saved payment methods (#724)
+- Fix bug in initialization process where loading spinner would never resolve (#716)
+- Add `changeActiveView` event to track when the Drop-in updates the active view presented to the customer
+- Add option to not vault PayPal accounts with `paypal.vault.vaultPayPal = false` or `paypalCredit.vault.vaultPayPal = false`
+
+1.27.0
+------
+- Update braintree-web to v3.74.0
+- Fix issue where Drop-in may error or not set up completely due to dependency setup race condition (#700)
+- Fix issue where Drop-in may report it is ready even though no payment options are actually available
+- Google Pay
+  - Fix issue where passing custom button option would caused a developer error in the console (#701)
+- 3D Secure
+  - Add `3ds:customer-canceled` event (#690)
+  - Add `3ds:authentication-modal-render` event
+  - Add `3ds:authentication-modal-close` event
+
+1.26.1
+------
+- Update braintree-web to v3.73.1
+- Google Pay
+  - Update Google Pay Icon to match new brand guidelines
+
+1.26.0
+------
+- Update braintree-web to v3.71.0
+- Update promise-polyfill to v8.2.0
+- Fix issue where payment method text may be clipped
+- Add ability to let the Braintree API decide which payment method to show first (typically, the last payment method added to the customer) instead of showing the payment method designated as the customer's default in the Braintree control panel
+  ```js
+  braintree.dropin.create({
+    // other config options
+    showDefaultPaymentMethodFirst: false
+  });
+  ```
+- Apple Pay
+  - Fix issue where Apple Pay view was using `canMakePaymentsWithActiveCard` incorrectly
+- PayPal
+  - Fix issue where PayPal buttons would not render correctly when multiple Drop-in instances were loaded (closes #590)
+
+1.25.0
+------
+- Pass through all underlying hosted fields events
+- Update braintree-web to v3.68.0
+  * Provide `CLIENT_AUTHORIZATION_INVALID` error when client token has expired or a tokenization key has been deactivated or deleted
+  * Apple Pay
+    - Support Maestro cards
+  * Card
+    - Fix issue where incorrect keyboard would be used for mobile devices that do not support input formatting
+    - Fix issue where autocomplete cannot run multiple times
+    - Add autofill handling for every hosted field
+  * Venmo
+    - Add allowWebviews configuration to isBrowserSupported
+- Add new locales:
+  * `ar_EG`
+  * `cs_CZ`
+  * `el_GR`
+  * `en_IN`
+  * `es_XC`
+  * `fi_FI`
+  * `fr_XC`
+  * `he_IL`
+  * `hu_HU`
+  * `sk_SK`
+  * `zh_XC`
+- Provide validation to prevent cardholder name fields from being submitted as card numbers
+- Fix issue where hosted fields would not auto focus on card view selection
+
+1.24.0
+------
+
+- Use `@braintree/uuid` package for uuid generation
+- Update braintree-web to v3.65.0
+- Update @braintree/asset-loader to v0.4.4
+- Update @braintree/browser-detection to v1.10.0
+- Update @braintree/class-list to v0.2.0
+- Update @braintree/event-emitter to v0.4.1
+- Update @braintree/wrap-promise to v2.1.0
+- Fix issue where `threeDSecureInfo` was not included in `requestPaymentMethod` payload
+- Add `getAvailablePaymentOptions` method to list what payment options have been presented to the customer (closes #594)
+- Add support for the shadow DOM for the card view
+
+1.23.0
+------
+- Add 3DS support for non-network tokenized Google Pay cards
+- Add `threeDSecureInfo` to 3DS payload in `requestPaymentMethod`
+- Update braintree-web to v3.63.0
+
+1.22.1
+------
+- Fix issue where payment requestable event would not fire when switching between vaulted payment methods (#499)
+- Update braintree-web to v3.58.0
+  - Venmo: fix issue where webview based integrations would break
+
+1.22.0
+------
+- Update braintree-web to v3.57.0
+  - Venmo: fix issue where SPA hash navigation may invalidate Venmo tokenization
+  - 3D Secure: fallback to a v1 flow if the v2 setup fails
+
+1.21.0
+------
+- Update braintree-web to v3.55.0
+  - Retry failed connections to Braintree Gateway due to TCP Preconnect errors in all browsers
+  - Google Pay: Add support for `isNetworkTokenized` param in `parseResponse` method
+  - Card Form: Fix issue where pasting a card number over an Amex number could cut off the last digit
+  - PayPal: Add support for shipping options (see https://braintree.github.io/braintree-web/current/PayPalCheckout.html#createPayment)
+- Prevent non-PayPal funding sources from appearing in the PayPal views
+
+1.20.4
+------
+- Update braintree-web to v3.54.2
+  - Fix issue with Venmo tokenization failing because of Single Page App routers
+
+1.20.3
+------
+- Update braintree-web to v3.54.0
+  - Fix issue where 3D Secure billing address was not sent over if no additional information was sent
+- Fix issue where PayPal loading would fail when using only PayPal credit
+
+1.20.2
+------
+- Update braintree-web to v3.53.0
+  - Fix issue when tabbing between fields on an Android or iOS < 13 software keybaord
+- Fix issue where error could be thrown when validating card form (closes #471)
+- Fix issue where css class names could not be passed as an override style for card form (closes #535)
+- Log developer error for Apple Pay failure when mismatching a Sandbox session with a production iCloud account (closes #522)
+
+
+1.20.1
+------
+- Update event-emitter to v0.3.0
+- Update braintree-web to v3.52.0
+  - Update songbird.js script urls for 3D Secure
+  - Fix issue where bin was not being passed to underlying cardinal SDK
+- Default 3D Secure ACS Window Size to `03` (see [`acsWindowSize` option](https://braintree.github.io/braintree-web/current/ThreeDSecure.html#verifyCard))
+- Scope full screen 3D Secure modal to screen sizes with heights of 700px and smaller
+
+1.20.0
+------
+- Update braintree-web to v3.50.1
+  - Add `threeDSecureInfo` to the 3D Secure response
+  - Add `expirationMonth` and `expirationYear` to card tokenization payload
+  - Fix issue where chrome books could not input correctly with a soft keyboard on card form
+  - Fix issue where Google Pay would error in Edge
+  - Fix issue where an error may be thrown when cancelling the 3D Secure flow
+  - Fix issue where Drop-in would throw an error when creating a 3ds component without a Cardinal Authentication JWT
+- Update browser-detection to v1.8.0
+- Fix issue where 3D Secure iframe may not be scrollable on devices with small screens
+
+1.19.0
 ------
 - Update asset-loader to v0.3.1
 - Update event-emitter to v0.2.0
 - Update promise-polyfill to v8.1.3
 - Update braintree-web to v3.47.0
+- Update wrap-promise to v2.0.0
+  - Errors thrown in developer provided callbacks will now log in the console
 - Replace css preprocessor, from [Sass](https://sass-lang.com) to [Less](http://lesscss.org)
 - Upgrade to gulp 4
 - Adjust delete confirmation box css to be consistent, all relative to own parent.
 - Improved build to properly interpolate current versions in not only docs but also built code
-- Update braintree-web to v3.46.0
 - Prevent Drop-in from firing requestable events prematurely (#511)
 - Add `off` method for unsubscribing from events without tearing down
 - Clean up extraneous css rules
@@ -22,8 +226,6 @@ _Beta Features_
 
 1.18.0
 ------
-- Update wrap-promise to v2.0.0
-  - Errors thrown in developer provided callbacks will now log in the console
 - Add ability to opt out of client side vaulting (cards)
 - Update Google Pay mark to adhere with [brand guidelines](https://developers.google.com/pay/api/web/guides/brand-guidelines#logo-mark)
 
@@ -244,7 +446,7 @@ _Beta Features_
 - Add built css to npm build
 - Fix typo in Dutch translations
 - Add ability to pass in a DOM Node to Drop-in as an alternative to a CSS selector
-- Update braintree-web to [version 3.16.0](https://github.com/braintree/braintree-web/blob/master/CHANGELOG.md#3160)
+- Update braintree-web to [version 3.16.0](https://github.com/braintree/braintree-web/blob/main/CHANGELOG.md#3160)
 - Update browser-detection to version 1.3.0
 - Update PayPal Checkout.js to version 4.0.75
 - Add updateConfiguration method to Drop-in instance for updating PayPal or PayPal Credit configuration
