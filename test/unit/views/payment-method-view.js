@@ -415,7 +415,7 @@ describe('PaymentMethodView', () => {
       });
 
       jest.spyOn(model, 'changeActivePaymentMethod').mockImplementation();
-      jest.spyOn(model, 'isInEditMode').mockReturnValue(false);
+      jest.spyOn(model, 'isInEditMode').mockReturnValue(true);
 
       view._choosePaymentMethod();
       // eslint-disable-next-line no-unused-expressions
@@ -424,7 +424,6 @@ describe('PaymentMethodView', () => {
       view._choosePaymentMethod();
       // eslint-disable-next-line no-unused-expressions
       expect(view.model.changeActivePaymentMethod).toBeCalledOnce;
-      expect(model.isInEditMode).toBeFalsy();
     });
 
     it('calls model.confirmPaymentMethodDeletion when delete icon is clicked', function () {
