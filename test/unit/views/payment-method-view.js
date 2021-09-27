@@ -361,6 +361,7 @@ describe('PaymentMethodView', () => {
       view.enableEditMode();
       // eslint-disable-next-line no-unused-expressions
       expect(classList.add).toBeCalledOnce;
+      expect(classList.add).not.toBeCalledWith(view.element, 'braintree-method--disabled');
     });
 
     it('does not apply disabled class if payment method does not have a subscription and the merchant configuration for preventing deleting payment methods with subscriptions is not enabled', function () {
@@ -380,6 +381,7 @@ describe('PaymentMethodView', () => {
       view.enableEditMode();
       // eslint-disable-next-line no-unused-expressions
       expect(classList.add).toBeCalledOnce;
+      expect(classList.add).not.toBeCalledWith(view.element, 'braintree-method--disabled');
     });
 
     it('does not apply disabled class if payment method does not have a subscription and the merchant configuration for preventing deleting payment methods with subscriptions is enabled', function () {
@@ -401,6 +403,7 @@ describe('PaymentMethodView', () => {
       view.enableEditMode();
       // eslint-disable-next-line no-unused-expressions
       expect(classList.add).toBeCalledOnce;
+      expect(classList.add).not.toBeCalledWith(view.element, 'braintree-method--disabled');
     });
 
     it('does not call model.changeActivePaymentMethod in click handler when in edit mode', function () {
