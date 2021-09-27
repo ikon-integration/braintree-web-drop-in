@@ -1,5 +1,5 @@
 {
-  "name": "@ikonintegration/braintree-web-drop-in",
+  "name": "@ikonintegration/braintree-web",
   "version": "1.31.2",
   "main": "src/index.js",
   "private": false,
