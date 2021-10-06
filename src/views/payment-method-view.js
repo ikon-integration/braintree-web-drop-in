@@ -89,6 +89,7 @@ PaymentMethodView.prototype.enableEditMode = function () {
 
   if (this._shouldDisablePaymentMethod()) {
     classList.add(this.element, 'braintree-method--disabled');
+    
   }
 };
 
@@ -112,7 +113,9 @@ PaymentMethodView.prototype._choosePaymentMethod = function () {
 };
 
 PaymentMethodView.prototype._selectDelete = function () {
-  this.model.confirmPaymentMethodDeletion(this.paymentMethod);
+  if (!this._shouldDisablePaymentMethod()) {
+    this.model.confirmPaymentMethodDeletion(this.paymentMethod);
+  }
 };
 
 PaymentMethodView.prototype._shouldDisablePaymentMethod = function () {
