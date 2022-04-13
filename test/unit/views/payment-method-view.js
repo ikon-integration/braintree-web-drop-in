@@ -1,20 +1,23 @@
-'use strict';
+const analytics = require('../../../src/lib/analytics');
+const BaseView = require('../../../src/views/base-view');
+const fake = require('../../helpers/fake');
+const PaymentMethodView = require('../../../src/views/payment-method-view');
+const addSelectionEventHandler = require('../../../src/lib/add-selection-event-handler');
+const strings = require('../../../src/translations/en_US');
 
-var analytics = require('../../../src/lib/analytics');
-var classList = require('@braintree/class-list');
-var BaseView = require('../../../src/views/base-view');
-var fake = require('../../helpers/fake');
-var fs = require('fs');
-var PaymentMethodView = require('../../../src/views/payment-method-view');
-var strings = require('../../../src/translations/en_US');
+jest.mock('../../../src/lib/add-selection-event-handler');
 
-var paymentMethodHTML = fs.readFileSync(__dirname + '/../../../src/html/payment-method.html', 'utf8');
+describe('PaymentMethodView', () => {
+  let config;
 
-describe('PaymentMethodView', function () {
-  beforeEach(function () {
-    this.div = document.createElement('div');
-    this.div.innerHTML = paymentMethodHTML;
-    document.body.appendChild(this.div);
+  beforeEach(() => {
+    config = {
+      strings,
+      paymentMethod: {
+        type: 'foo',
+        nonce: 'fake-nonce'
+      }
+    };
   });
 
   describe('Constructor', () => {
@@ -314,122 +317,9 @@ describe('PaymentMethodView', function () {
     );
   });
 
-  describe('edit mode', function () {
-    it('applies disabled class if payment method has a subscription and the merchant configuration for preventing deleting payment methods with subscriptions is enabeld', function () {
-      var model = fake.model();
-      var view = new PaymentMethodView({
-        model: model,
-        strings: strings,
-        paymentMethod: {
-          hasSubscription: true,
-          type: 'Foo',
-          nonce: 'nonce'
-        }
-      });
-
-      model.merchantConfiguration.vaultManager = {
-        preventDeletingPaymentMethodsWithSubscriptions: true
-      };
-      jest.spyOn(classList, 'add').mockImplementation();
-
-      view.enableEditMode();
-      // eslint-disable-next-line no-unused-expressions
-      expect(classList.add).toBeCalledTwice;
-      expect(classList.add).toBeCalledWith(view.element, 'braintree-method--disabled');
-    });
-
-    it('does not apply disabled class if payment method has a subscription and the merchant configuration for preventing deleting payment methods with subscriptions is not enabled', function () {
-      var model = fake.model();
-      var view = new PaymentMethodView({
-        model: model,
-        strings: strings,
-        paymentMethod: {
-          hasSubscription: true,
-          type: 'Foo',
-          nonce: 'nonce'
-        }
-      });
-
-      model.merchantConfiguration.vaultManager = true;
-      jest.spyOn(classList, 'add').mockImplementation();
-
-      view.enableEditMode();
-      // eslint-disable-next-line no-unused-expressions
-      expect(classList.add).toBeCalledOnce;
-      expect(classList.add).not.toBeCalledWith(view.element, 'braintree-method--disabled');
-    });
-
-    it('does not apply disabled class if payment method does not have a subscription and the merchant configuration for preventing deleting payment methods with subscriptions is not enabled', function () {
-      var model = fake.model();
-      var view = new PaymentMethodView({
-        model: model,
-        strings: strings,
-        paymentMethod: {
-          type: 'Foo',
-          nonce: 'nonce'
-        }
-      });
-
-      model.merchantConfiguration.vaultManager = true;
-      jest.spyOn(classList, 'add').mockImplementation();
-
-      view.enableEditMode();
-      // eslint-disable-next-line no-unused-expressions
-      expect(classList.add).toBeCalledOnce;
-      expect(classList.add).not.toBeCalledWith(view.element, 'braintree-method--disabled');
-    });
-
-    it('does not apply disabled class if payment method does not have a subscription and the merchant configuration for preventing deleting payment methods with subscriptions is enabled', function () {
-      var model = fake.model();
-      var view = new PaymentMethodView({
-        model: model,
-        strings: strings,
-        paymentMethod: {
-          type: 'Foo',
-          nonce: 'nonce'
-        }
-      });
-
-      model.merchantConfiguration.vaultManager = {
-        preventDeletingPaymentMethodsWithSubscriptions: true
-      };
-      jest.spyOn(classList, 'add').mockImplementation();
-
-      view.enableEditMode();
-      // eslint-disable-next-line no-unused-expressions
-      expect(classList.add).toBeCalledOnce;
-      expect(classList.add).not.toBeCalledWith(view.element, 'braintree-method--disabled');
-    });
-
-    it('does not call model.changeActivePaymentMethod in click handler when in edit mode', function () {
-      var model = fake.model();
-      var view = new PaymentMethodView({
-        model: model,
-        strings: strings,
-        paymentMethod: {
-          type: 'Foo',
-          nonce: 'nonce'
-        }
-      });
-
-      jest.spyOn(model, 'changeActivePaymentMethod').mockImplementation();
-      jest.spyOn(model, 'isInEditMode').mockReturnValue(true);
-
-      view._choosePaymentMethod();
-      // eslint-disable-next-line no-unused-expressions
-      expect(view.model.changeActivePaymentMethod).toNotBeCalled;
-
-      view._choosePaymentMethod();
-      // eslint-disable-next-line no-unused-expressions
-      expect(view.model.changeActivePaymentMethod).toBeCalledOnce;
-    });
-
-    it('calls model.confirmPaymentMethodDeletion when delete icon is clicked', function () {
-      // eslint-disable-next-line no-unused-vars
-      var fakeModel = {
-        confirmPaymentMethodDeletion: jest.fn()
-      };
-      var paymentMethod = {
+  describe('teardown', () => {
+    test('removes element from the container', () => {
+      const paymentMethod = {
         type: 'Foo',
         nonce: 'nonce'
       };
@@ -447,27 +337,5 @@ describe('PaymentMethodView', function () {
       expect(document.body.removeChild).toBeCalledTimes(1);
       expect(document.body.removeChild).toBeCalledWith(view.element);
     });
-  });
-});
-
-describe('teardown', () => {
-  test('removes element from the container', () => {
-    const paymentMethod = {
-      type: 'Foo',
-      nonce: 'nonce'
-    };
-    const view = new PaymentMethodView({
-      model: {},
-      strings: strings,
-      paymentMethod: paymentMethod
-    });
-
-    document.body.appendChild(view.element);
-    jest.spyOn(document.body, 'removeChild');
-
-    view.teardown();
-
-    expect(document.body.removeChild).toBeCalledTimes(1);
-    expect(document.body.removeChild).toBeCalledWith(view.element);
   });
 });
