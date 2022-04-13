@@ -330,12 +330,12 @@ describe('PaymentMethodView', function () {
       model.merchantConfiguration.vaultManager = {
         preventDeletingPaymentMethodsWithSubscriptions: true
       };
-      this.sandbox.stub(classList, 'add');
+      jest.spyOn(classList, 'add').mockImplementation();
 
       view.enableEditMode();
-
-      expect(classList.add).to.be.calledTwice;
-      expect(classList.add).to.be.calledWith(view.element, 'braintree-method--disabled');
+      // eslint-disable-next-line no-unused-expressions
+      expect(classList.add).toBeCalledTwice;
+      expect(classList.add).toBeCalledWith(view.element, 'braintree-method--disabled');
     });
 
     it('does not apply disabled class if payment method has a subscription and the merchant configuration for preventing deleting payment methods with subscriptions is not enabled', function () {
@@ -351,12 +351,12 @@ describe('PaymentMethodView', function () {
       });
 
       model.merchantConfiguration.vaultManager = true;
-      this.sandbox.stub(classList, 'add');
+      jest.spyOn(classList, 'add').mockImplementation();
 
       view.enableEditMode();
-
-      expect(classList.add).to.be.calledOnce;
-      expect(classList.add).to.not.be.calledWith(this.sandbox.match.any, 'braintree-method--disabled');
+      // eslint-disable-next-line no-unused-expressions
+      expect(classList.add).toBeCalledOnce;
+      expect(classList.add).not.toBeCalledWith(view.element, 'braintree-method--disabled');
     });
 
     it('does not apply disabled class if payment method does not have a subscription and the merchant configuration for preventing deleting payment methods with subscriptions is not enabled', function () {
@@ -371,12 +371,12 @@ describe('PaymentMethodView', function () {
       });
 
       model.merchantConfiguration.vaultManager = true;
-      this.sandbox.stub(classList, 'add');
+      jest.spyOn(classList, 'add').mockImplementation();
 
       view.enableEditMode();
-
-      expect(classList.add).to.be.calledOnce;
-      expect(classList.add).to.not.be.calledWith(this.sandbox.match.any, 'braintree-method--disabled');
+      // eslint-disable-next-line no-unused-expressions
+      expect(classList.add).toBeCalledOnce;
+      expect(classList.add).not.toBeCalledWith(view.element, 'braintree-method--disabled');
     });
 
     it('does not apply disabled class if payment method does not have a subscription and the merchant configuration for preventing deleting payment methods with subscriptions is enabled', function () {
@@ -393,12 +393,12 @@ describe('PaymentMethodView', function () {
       model.merchantConfiguration.vaultManager = {
         preventDeletingPaymentMethodsWithSubscriptions: true
       };
-      this.sandbox.stub(classList, 'add');
+      jest.spyOn(classList, 'add').mockImplementation();
 
       view.enableEditMode();
-
-      expect(classList.add).to.be.calledOnce;
-      expect(classList.add).to.not.be.calledWith(this.sandbox.match.any, 'braintree-method--disabled');
+      // eslint-disable-next-line no-unused-expressions
+      expect(classList.add).toBeCalledOnce;
+      expect(classList.add).not.toBeCalledWith(view.element, 'braintree-method--disabled');
     });
 
     it('does not call model.changeActivePaymentMethod in click handler when in edit mode', function () {
@@ -412,22 +412,22 @@ describe('PaymentMethodView', function () {
         }
       });
 
-      this.sandbox.stub(model, 'changeActivePaymentMethod');
-      this.sandbox.stub(model, 'isInEditMode').returns(true);
+      jest.spyOn(model, 'changeActivePaymentMethod').mockImplementation();
+      jest.spyOn(model, 'isInEditMode').mockReturnValue(true);
 
       view._choosePaymentMethod();
+      // eslint-disable-next-line no-unused-expressions
+      expect(view.model.changeActivePaymentMethod).toNotBeCalled;
 
-      expect(view.model.changeActivePaymentMethod).to.not.be.called;
-
-      model.isInEditMode.returns(false);
       view._choosePaymentMethod();
-
-      expect(view.model.changeActivePaymentMethod).to.be.calledOnce;
+      // eslint-disable-next-line no-unused-expressions
+      expect(view.model.changeActivePaymentMethod).toBeCalledOnce;
     });
 
     it('calls model.confirmPaymentMethodDeletion when delete icon is clicked', function () {
+      // eslint-disable-next-line no-unused-vars
       var fakeModel = {
-        confirmPaymentMethodDeletion: this.sandbox.stub()
+        confirmPaymentMethodDeletion: jest.fn()
       };
       var paymentMethod = {
         type: 'Foo',
@@ -447,5 +447,27 @@ describe('PaymentMethodView', function () {
       expect(document.body.removeChild).toBeCalledTimes(1);
       expect(document.body.removeChild).toBeCalledWith(view.element);
     });
+  });
+});
+
+describe('teardown', () => {
+  test('removes element from the container', () => {
+    const paymentMethod = {
+      type: 'Foo',
+      nonce: 'nonce'
+    };
+    const view = new PaymentMethodView({
+      model: {},
+      strings: strings,
+      paymentMethod: paymentMethod
+    });
+
+    document.body.appendChild(view.element);
+    jest.spyOn(document.body, 'removeChild');
+
+    view.teardown();
+
+    expect(document.body.removeChild).toBeCalledTimes(1);
+    expect(document.body.removeChild).toBeCalledWith(view.element);
   });
 });
